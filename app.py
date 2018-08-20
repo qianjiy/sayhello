@@ -1,5 +1,6 @@
 from aiohttp import web
 from importlib import import_module
+from orm import create_pool
 
 
 def include(module):
@@ -8,7 +9,8 @@ def include(module):
     return routes
 
 
-def make_app():
+async def make_app():
     app = web.Application()
-    app.add_routes(include('view.user'))
+    await create_pool(app.loop)
+    app.add_routes(include('views.user'))
     return app
