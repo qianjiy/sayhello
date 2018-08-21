@@ -5,6 +5,10 @@ from conf.base import db_conf
 logger = get_logger('db')
 
 
+async def init_db(loop):
+    await create_pool(loop)
+
+
 async def create_pool(loop):
     logger.info('create database connection pool...')
     global __pool
@@ -24,13 +28,9 @@ async def select(sql, args, size=None):
 
 
 async def execute(sql, args):
-    '''
-    insert update delete
-    :param sql:
-    :param args:
-    :return:
-    '''
+    # insert update delete
     global __pool
+    # print(sql, args)
     async with __pool.acquire() as conn:
         async with conn.cursor() as cur:
             try:
@@ -109,13 +109,10 @@ class ModelClass(type):
         attrs['__select__'] = 'select `%s`, %s from `%s`' % (primary_key, ','.join(escaped_fields), table_name)
         attrs['__insert__'] = 'insert into `%s` (`%s`, %s)values (%s)' % (
             table_name, primary_key, ','.join(escaped_fields), create_args_str(len(fields) + 1))
-        attrs['__update__'] = 'update `%s` set %s where `%s` = ?' % (
-            table_name, '.'.join(map(lambda s: '`%s` = ?' % (mappings.get(s).name or s), fields)), primary_key)
-        attrs['__delete__'] = 'delete from `%s` where `%s`= ?' % (table_name, primary_key)
+        attrs['__update__'] = 'update `%s`' % table_name
+        attrs['__delete__'] = 'delete from `%s` where' % (table_name)
         return type.__new__(cls, name, bases, attrs)
 
-
-# todo test update delete
 
 class Model(dict, metaclass=ModelClass):
 
@@ -144,12 +141,59 @@ class Model(dict, metaclass=ModelClass):
         return value
 
     @classmethod
-    async def find(cls, primary_key):
-        res = await select('%s where `%s`=?' % (cls.__select__, cls.__primary_key__), [primary_key], 1)
+    async def find(cls, where: dict, size=1):
+        # -1 to find all
+        if size == -1:
+            size = None
+        if len(where) == 0:
+            res = await select(cls.__select__, [], size)
+        else:
+            try:
+                condition = list(map(lambda s: '`%s` = ?' % (cls.__mappings__.get(s).name or s), where.keys()))
+            except AttributeError:
+                raise AttributeError('%s does not have exact attributes in %s' % (cls.__name__, list(where.keys())))
+            res = await select('%s where %s' % (cls.__select__, ','.join(condition)), list(where.values()), size)
         if len(res) == 0:
             return None
         else:
-            return cls(**res[0])
+            return [cls(**d) for d in res]
+
+    @classmethod
+    async def find_first(cls, where={}):
+        res = await cls.find(where=where, size=1)
+        if res:
+            return res[0]
+        else:
+            return None
+
+    @classmethod
+    async def find_all(cls, where={}):
+        return await cls.find(where=where, size=-1)
+
+    @classmethod
+    async def delete(cls, where: dict):
+        if len(where) == 0:
+            return 0
+        try:
+            condition = list(map(lambda s: '`%s` = ?' % (cls.__mappings__.get(s).name or s), where.keys()))
+        except AttributeError:
+            raise AttributeError('%s does not have exact attributes in %s' % (cls.__name__, list(where.keys())))
+        res = await execute('%s %s' % (cls.__delete__, ','.join(condition)), list(where.values()))
+        return res
+
+    # attrs['__update__'] = 'update `%s` ' % table_name
+
+    @classmethod
+    async def change(cls, where: dict, update: dict):
+        try:
+            up = list(map(lambda s: '`%s`=?' % (cls.__mappings__.get(s).name or s), update.keys()))
+            condition = list(map(lambda s: '`%s`=?' % (cls.__mappings__.get(s).name or s), where.keys()))
+        except AttributeError:
+            raise AttributeError(
+                '%s does not have exact attributes in %s' % (cls.__name__, list(where.keys() + list(update.keys()))))
+        res = await execute('%s set %s where %s' % (cls.__update__, ','.join(up), ','.join(condition)),
+                            list(update.values()) + list(where.values()))
+        return res
 
     async def save(self):
         args = [self.getValueOrDefault(self.__primary_key__)]
@@ -157,3 +201,5 @@ class Model(dict, metaclass=ModelClass):
         res = await execute(self.__insert__, args)
         if res != 1:
             logger.warning('failed to insert record: affected rows: %s' % res)
+            return False
+        return True

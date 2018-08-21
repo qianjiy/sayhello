@@ -1,5 +1,3 @@
-# minsize=1, maxsize=10, echo=False, pool_recycle=-1,
-#                 loop=None, **kwargs
 db_conf = {
     'host': 'localhost',
     'port': 3306,
@@ -9,11 +7,19 @@ db_conf = {
     'autocommit': True,
     'db': 'sayhello'
 }
+redis_conf = {
+    'address': 'redis://localhost',
+    'password': 'password',
+    'encoding': 'utf-8',
+}
 
 ERROR_CODE = {
     '0': 'ok',
     '1001': 'request argument incorrect',
     '1002': 'user existed already',
     '1003': 'user had not signed up',
-    '1004': 'wrong password'
+    '1004': 'wrong password',
+    '1005': 'logout already',
+    '1006': 'login already',
+    '1007': 'had not logged in',
 }
