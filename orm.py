@@ -1,8 +1,5 @@
-import aiomysql
-from log.log import get_logger
+import aiomysql, logging
 from conf.base import db_conf
-
-logger = get_logger('db')
 
 
 async def init_db(loop):
@@ -10,7 +7,7 @@ async def init_db(loop):
 
 
 async def create_pool(loop):
-    logger.info('create database connection pool...')
+    logging.info('create database connection pool...')
     global __pool
     __pool = await aiomysql.create_pool(loop=loop, **db_conf)
 
@@ -200,6 +197,6 @@ class Model(dict, metaclass=ModelClass):
         args += list(map(self.getValueOrDefault, self.__fields__))
         res = await execute(self.__insert__, args)
         if res != 1:
-            logger.warning('failed to insert record: affected rows: %s' % res)
+            logging.warning('failed to insert record: affected rows: %s' % res)
             return False
         return True

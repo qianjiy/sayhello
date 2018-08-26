@@ -16,10 +16,10 @@ redis_conf = {
 ERROR_CODE = {
     '0': 'ok',
     '1001': 'request argument incorrect',
-    '1002': 'user existed already',
-    '1003': 'user had not signed up',
+    '1002': 'the name has been used',
+    '1003': 'user did not signed up',
     '1004': 'wrong password',
-    '1005': 'logout already',
-    '1006': 'login already',
-    '1007': 'had not logged in',
+    '1005': 'unknown error',
+    '1006': 'valid name format',
+    '1007': 'password should contains at least 6 characters'
 }

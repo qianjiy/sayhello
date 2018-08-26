@@ -10,3 +10,6 @@ def include(module):
 def add_routes(app):
     app.add_routes(include('views.user'))
     app.add_routes(include('views.chat'))
+    app.add_routes(include('views.room'))
+    # todo del test
+    app.add_routes(include('views.test'))

@@ -1,12 +1,5 @@
 import aioredis
-
 from conf.base import redis_conf
-
-conf = {
-    'msg_que': 'msg_que_%s',
-    'msg_format': '{"who": "%s", "msg": %s"}',
-    'cache_': 'cache_%s'
-}
 
 
 async def init_redis(loop):
@@ -18,30 +11,33 @@ async def create_pool(loop):
     pool = await aioredis.create_pool(loop=loop, **redis_conf)
 
 
-async def login_cache(email, password):
-    await pool.execute('set', conf['cache_'] % email, password)
-    return await pool.execute('expire', conf['cache_'] % email, 86400)  # disappear after 24h
+# user cache format
+# user_name password
+async def set_user(name, password):
+    await pool.execute('set', 'user_{}'.format(name), password)
+    # cache will disappear in 24 hours
+    return await pool.execute('expire', 'user_{}'.format(name), 86400)
 
 
-# return logged password
-async def logged(email):
-    return await pool.execute('get', conf['cache_'] % email)
+# get the password of the user, if it is in cache, otherwise return None
+async def get_user_password(name):
+    return await pool.execute('get', 'user_{}'.format(name))
 
 
-async def logout(email, password):
-    res = await pool.execute('get', conf['cache_'] % email)
-    if res and res == password:
-        return await pool.execute('del', conf['cache_'] % email)
-    return False
-
-
-async def send_msg(from_user, to_user, msg):
-    return await pool.execute('rpush', conf['msg_que'] % to_user, conf['msg_format'] % (from_user, msg))
+# msg format:
+# msg queue : user_msg_name
+# {"from":"", "msg":""}
+async def set_msg(from_user, to_user, msg):
+    return await pool.execute('rpush', 'user_msg_{}'.format(to_user),
+                              '{"from": "%s", "msg": "%s"}' % (from_user, msg))
 
 
 async def get_msg(user):
-    return await pool.execute('lpop', conf['msg_que'] % user)
+    print('user_msg_{}'.format(user))
+    res = await pool.execute('lrange', 'user_msg_{}'.format(user), 0, -1)
+    await pool.execute('del', 'user_msg_{}'.format(user))
+    return res
 
 
-async def get_mag_fail(user, msg):
-    return await pool.execute('lpush', conf['msg_que'] % user, msg)
+async def get_error(user, msg):
+    return await pool.execute('rpush', 'user_msg_{}'.format(user), msg)
